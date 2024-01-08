@@ -1,0 +1,112 @@
+select {fromdt}	as fromdt
+     , {todt}	as todt
+     , a.agency_order_no
+     , a.release_order_date	-- 출하요청일
+     , a.end_place_cd		-- 도착지코드
+     , a.end_place_nm		-- 도착지
+     , a.item_cd		-- 제품코드
+     , c.prod_type1	as prod_type_nm		-- 기종
+     , c.carcass_cd
+     , c.sales_cd		-- 모델
+     , a.order_qty		-- 수량
+     , b.sale_type		-- 출하구분
+     , a.start_place_cd		-- 출발지코드
+     , a.start_place_nm		-- 출발지
+     , case when a.option_1 = 'Y' then '부착' else '미부착' end	as weight	-- 웨이트
+     , b.agency_remark		-- 비고
+      ,a.region_agency/*Cuong add for printing 2024-01-08*/
+     , a.ceo_name/*Cuong add for printing 2024-01-08*/
+  from (select '1'			as gubun	-- 부산창고
+             , a.agency_order_no
+             , a.release_order_date
+             , a.agency_cd		as end_place_cd
+             , concat(ifnull(b.region, ''), ' ', ifnull(b.agency_name, ''))	as end_place_nm
+             , a.item_cd
+             , a.order_qty
+             , ''			as start_place_cd
+             , '글로텍(부산)'		as start_place_nm
+             , a.option_1
+              ,a.region_agency/*Cuong add for printing 2024-01-08*/
+             , a.ceo_name/*Cuong add for printing 2024-01-08*/
+          from (select a.agency_order_no
+                     , a.release_order_date
+                     , a.agency_cd
+                     , a.item_cd
+                     , sum(a.order_qty)	as order_qty
+                     , a.option_1
+                     ,concat(ag.region, ' ', ag.agency_name) as region_agency/*Cuong add for printing 2024-01-08*/
+                     , ag.ceo_name/*Cuong add for printing 2024-01-08*/
+                  from tb_release_order_wh a
+                  left join tb_ma_agency ag on ag.agency_cd = a.agency_cd/*Cuong add for printing 2024-01-08*/
+                 where 1 = 1
+                   and (ifnull({fromdt}, '') = '' or release_order_date >= {fromdt})
+                   and (ifnull({todt}, '') = '' or release_order_date <= {todt})
+                 group by agency_order_no, release_order_date, agency_cd, item_cd, option_1) a
+          left join tb_ma_agency b on b.agency_cd = a.agency_cd
+
+        union all
+
+        select '2'			as gubun	-- 전수배
+             , a.agency_order_no
+             , a.release_order_date
+             , a.end_agency_cd		as end_place_cd
+             , concat(ifnull(b.region, ''), ' ', ifnull(b.agency_name, ''))	as end_place_nm
+             , a.item_cd
+             , a.order_qty
+             , a.start_agency_cd	as start_place_cd
+             , concat('전수배(', ifnull(c.region, ''), ' ', ifnull(c.agency_name, ''), ')')	as start_place_nm
+             , a.option_1
+             ,a.region_agency/*Cuong add for printing 2024-01-08*/
+             , a.ceo_name/*Cuong add for printing 2024-01-08*/
+          from (select a.agency_order_no
+                     , a.release_order_date
+                     , a.end_agency_cd
+                     , a.item_cd
+                     , sum(a.order_qty)	as order_qty
+                     , a.start_agency_cd
+                     , a.option_1
+                     ,concat(ag.region, ' ', ag.agency_name) as region_agency/*Cuong add for printing 2024-01-08*/
+                     , ag.ceo_name/*Cuong add for printing 2024-01-08*/
+                  from tb_release_order_wanted a
+                  left join tb_ma_agency ag on ag.agency_cd = a.end_agency_cd/*Cuong add for printing 2024-01-08*/
+                 where 1 = 1
+                   and (ifnull({fromdt}, '') = '' or release_order_date >= {fromdt})
+                   and (ifnull({todt}, '') = '' or release_order_date <= {todt})
+                 group by agency_order_no, release_order_date, end_agency_cd, item_cd, start_agency_cd, option_1) a
+          left join tb_ma_agency b on b.agency_cd = a.end_agency_cd
+          left join tb_ma_agency c on c.agency_cd = a.start_agency_cd
+
+        union all
+
+        select '3'			as gubun	-- 협력업체직출고
+             , a.agency_order_no
+             , a.release_order_date
+             , a.end_agency_cd		as end_place_cd
+             , concat(ifnull(b.region, ''), ' ', ifnull(b.agency_name, ''))	as end_place_nm
+             , a.item_cd
+             , a.order_qty
+             , a.start_cust_cd		as start_place_cd
+             , concat('협력업체(', ifnull(c.cust_name, ''), ')')	as start_place_nm
+             , a.option_1
+             ,a.region_agency/*Cuong add for printing 2024-01-08*/
+             , a.ceo_name/*Cuong add for printing 2024-01-08*/
+          from (select a.agency_order_no
+                     , a.release_order_date
+                     , a.end_agency_cd
+                     , a.item_cd
+                     , sum(a.order_qty)	as order_qty
+                     , a.start_cust_cd
+                     , a.option_1
+                     ,concat(ag.region, ' ', ag.agency_name) as region_agency/*Cuong add for printing 2024-01-08*/
+                     , ag.ceo_name/*Cuong add for printing 2024-01-08*/
+                  from tb_release_order_cust a
+                  left join tb_ma_agency ag on ag.agency_cd = a.end_agency_cd/*Cuong add for printing 2024-01-08*/
+                 where 1 = 1
+                   and (ifnull({fromdt}, '') = '' or release_order_date >= {fromdt})
+                   and (ifnull({todt}, '') = '' or release_order_date <= {todt})
+                 group by agency_order_no, release_order_date, end_agency_cd, item_cd, start_cust_cd, option_1) a
+          left join tb_ma_agency b on b.agency_cd = a.end_agency_cd
+          left join tb_ma_cust c on c.cust_cd = a.start_cust_cd) a
+  left join tb_agency_order b on b.agency_order_no = a.agency_order_no
+  left join vw_ma_item c on c.item_cd = a.item_cd
+ order by a.release_order_date desc, a.gubun, a.end_place_nm, c.prod_type1, c.sales_cd
